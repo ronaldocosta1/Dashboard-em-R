@@ -1,8 +1,8 @@
 # Dashboard-em-R
 ## Dashboard em R produzido com o flexdashboard
 
-Este Dashboard foi elaborado na linguagem R, utilizando o flexdashboard durante o 3° periodo do curso de estatística na UFCG.  
-Foram realizados tratamentos para em seguida elabor os gráficos e fazer a estruturação do Dashboard.
+Este Dashboard foi elaborado na linguagem R, utilizando o flexdashboard durante o 3° período do curso de estatística na UFCG.  
+Foram realizados tratamentos para em seguida elaborar os gráficos e fazer a estruturação do Dashboard.
 
 Dados brutos retirados de [covid.saude.gov](https://covid.saude.gov.br)  
 
