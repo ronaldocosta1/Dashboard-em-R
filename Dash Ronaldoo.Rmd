@@ -1,0 +1,1361 @@
+---
+title: "Dados SRAG"
+# author: "Ronaldo C. Silva"
+# date: "15/03/2022"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    social: ["linkedin"]
+    theme: yeti
+    runtime: shiny
+# logo: imagem.png
+# favicon: imagem.png
+    
+---
+
+<style>
+.colored {
+  background-color: #FAFAFA;
+}
+</style>
+
+
+<style type="text/css">
+.chart-title {  /* chart_title  */  
+   font-size: 25px;
+   font-family: Algerian;
+
+</style>
+
+
+
+``` {js}
+// Inverse the color of navigation bar.  (barra preta)
+$('.navbar-inverse').removeClass('navbar-inverse').addClass('navbar-default');
+```
+
+
+```{r setup, include=FALSE}
+
+# Load necessary packages. 
+
+library(flexdashboard) # Dashboard package
+library(shiny)
+library(bslib)
+library(tidyverse) # Metapackge
+library(xlsx)
+library(memer)
+library(data.table)
+library(DT) # Displaying data tables
+library(ggimage)
+library(kableExtra)
+library(lubridate)
+library(highcharter) # Interactive data visualizations
+library(viridis) # Color gradients
+library(crosstalk) # Provides interactivity for HTML widgets
+
+options(scipen=999)
+
+
+#"https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SRAG/2021/INFLUD21-15-03-2022.csv"
+
+#bslib::bs_themer()    #Tema
+```
+
+
+
+```{r echo=FALSE}
+
+#https://covid.saude.gov.br
+
+
+dados <- fread("INFLUD21-10-01-2022.csv", 
+         selec = c("DT_SIN_PRI","SG_UF_NOT","ID_MUNICIP","CO_MUN_NOT","CS_SEXO",
+                   "NU_IDADE_N","FEBRE","TOSSE","GARGANTA","DOR_ABD","FADIGA",
+                   "PERD_OLFT","PERD_PALA","VACINA_COV","DIABETES","OBESIDADE")) %>%
+         rename("data" = "DT_SIN_PRI",
+                "idade" = "NU_IDADE_N",
+                "sexo" = "CS_SEXO",
+                "vacinado" = "VACINA_COV") %>% 
+        filter(SG_UF_NOT  %in% c('AL','CE','MA','PB','PE','PI','RN','SE','BA'))  # Estados do nordeste (8 dos 26 estados)
+
+
+
+#DT_SIN_PRI = Data do preenchimento da ficha de notificação
+#SG_UF_NOT = UF
+#ID_MUNICIP = municipio
+#CO_MUN_NOT = cod municipio
+#CS_SEXO = sexo
+#NU_IDADE_N = idade
+#FEBRE = Sinais e Sintomas/Febre
+#TOSSE =  Sinais e Sintomas/Tosse
+#GARGANTA = Sinais e Sintomas/garganta
+#DOR_ABD = Sinais e Sintomas/Dor abdomina
+#FADIGA = Sinais e Sintomas/Fadiga
+#PERD_OLFT = Sinais e Sintomas/Perda do Olfato
+#PERD_PALA = Sinais e Sintomas/Perda do Paladar
+#DIABETE = Fatores de risco/ Diabetes mellitus
+#OBESIDADE = Fatores de risco/ Obesidade
+#VACINA_COV =  Recebeu vacina COVID-19?
+
+
+
+dados$faixa_idade <- cut(dados$idade, breaks = c(min(dados$idade), 5, 14, 24, 34, 54, 74, max(dados$idade)),
+                         labels = c("0 a 5 Anos","6 a 14 Anos", "15 a 24 Anos", "25 a 34 Anos", "35 a 54 Anos", "55 a 74 Anos", "+75 Anos"))
+
+dados$faixa_idade <- as.character(dados$faixa_idade)
+
+
+
+dados$data <- dmy(dados$data) # convertendo para data
+dados$data <- parse_date_time(format(dados$data, "%y-%m"), "ym")
+
+
+
+
+bruto_municipios <- read.xlsx("Lista-de-Municipios-com-IBGE-Brasil.xlsx", sheetName  = "Lista de Municípios IBGE", encoding = "UTF-8")
+
+populacao <- bruto_municipios[ ,-c(1,4,6,8,9,10)]
+colnames(populacao) <- c('CO_MUN_NOT','CO_MUN_NOT_7','municipio','populacao_2010')
+
+
+
+#https://pt.stackoverflow.com/questions/46473/remover-acentos
+rm_accent <- function(str,pattern="all") {
+  # Rotinas e funções úteis V 1.0
+  # rm.accent - REMOVE ACENTOS DE PALAVRAS
+  # Função que tira todos os acentos e pontuações de um vetor de strings.
+  # Parâmetros:
+  # str - vetor de strings que terão seus acentos retirados.
+  # patterns - vetor de strings com um ou mais elementos indicando quais acentos deverão ser retirados.
+  #            Para indicar quais acentos deverão ser retirados, um vetor com os símbolos deverão ser passados.
+  #            Exemplo: pattern = c("´", "^") retirará os acentos agudos e circunflexos apenas.
+  #            Outras palavras aceitas: "all" (retira todos os acentos, que são "´", "`", "^", "~", "¨", "ç")
+  if(!is.character(str))
+    str <- as.character(str)
+  
+  pattern <- unique(pattern)
+  
+  if(any(pattern=="Ç"))
+    pattern[pattern=="Ç"] <- "ç"
+  
+  symbols <- c(
+    acute = "áéíóúÁÉÍÓÚýÝ",
+    grave = "àèìòùÀÈÌÒÙ",
+    circunflex = "âêîôûÂÊÎÔÛ",
+    tilde = "ãõÃÕñÑ",
+    umlaut = "äëïöüÄËÏÖÜÿ",
+    cedil = "çÇ"
+  )
+  
+  nudeSymbols <- c(
+    acute = "aeiouAEIOUyY",
+    grave = "aeiouAEIOU",
+    circunflex = "aeiouAEIOU",
+    tilde = "aoAOnN",
+    umlaut = "aeiouAEIOUy",
+    cedil = "cC"
+  )
+  
+  accentTypes <- c("´","`","^","~","¨","ç")
+  
+  if(any(c("all","al","a","todos","t","to","tod","todo")%in%pattern)) # opcao retirar todos
+    return(chartr(paste(symbols, collapse=""), paste(nudeSymbols, collapse=""), str))
+  
+  for(i in which(accentTypes%in%pattern))
+    str <- chartr(symbols[i],nudeSymbols[i], str)
+  
+  return(str)
+}
+
+
+populacao$municipio <- rm_accent(populacao$municipio) #removendo os acentos para o match
+
+
+dados <- merge(dados,        #juntando dados e populacao
+               populacao,
+               all.x = TRUE)
+
+analise_estados <- function(estado){
+  
+  analise_estado <- dados %>%  
+    filter(SG_UF_NOT == estado) %>%  
+    select_(.dots = c("ID_MUNICIP"))  #casos 
+  
+  
+  est <- data.frame(table(analise_estado$ID_MUNICIP)) %>%  # distribuição de frequencia 
+    rename("Municipio" = "Var1",
+           "Frequencia" = "Freq") %>% 
+    mutate(Porcentagem = round(Frequencia/sum(Frequencia)*100,digits = 2))
+  
+  populacao$municipio <- toupper(populacao$municipio) #convertendo para letras maiusculas
+  
+  
+  est$populacao_2010 <- populacao$populacao_2010[match(est$Municipio,populacao$municipio)] #criando o campo população
+  
+  est <- within(est, "1 caso a cada x pessoas" <- round(populacao_2010/Frequencia)) #criando o compo '1 caso a cada x pessoas'
+  
+  est
+  
+}
+
+
+
+
+```
+
+
+
+
+```{r, echo=FALSE}
+
+saida_AL <- analise_estados("AL")
+saida_BA <- analise_estados("BA")
+saida_CE <- analise_estados("CE")
+saida_PB <- analise_estados("PB")
+saida_PE <- analise_estados("PE")
+saida_PI <- analise_estados("PI")
+saida_RN <- analise_estados("RN")
+saida_SE <- analise_estados("SE")
+saida_MA <- analise_estados("MA")
+
+
+
+# selectInput("estado", label = "Estado",
+#             choices = unique(dados$SG_UF_NOT), selected = "PB")
+# 
+# tabela_2 <- renderDataTable(datatable(analise_estados(input$estado),rownames = F, options = list(paging =TRUE, pageLength = 20, scroller = TRUE, scrollY = 700)))
+
+
+
+
+
+saida_AL_plot <- saida_AL %>% select(Municipio,Frequencia,Porcentagem)
+
+
+top5_al <- saida_AL_plot[(order(-saida_AL_plot$Frequencia)), ]
+
+top5_al <- top5_al[1:10, ]
+
+top5_al$Municipio <- gsub('MACEIO','Maceió',top5_al$Municipio)
+top5_al$Municipio <- gsub('ARAPIRACA','Arapiraca',top5_al$Municipio)
+top5_al$Municipio <- gsub('SANTANA DO IPANEMA','Santana do Ipanema',top5_al$Municipio)
+top5_al$Municipio <- gsub('SAO MIGUEL DOS CAMPOS','São Miguel dos Campos',top5_al$Municipio)
+top5_al$Municipio <- gsub('PALMEIRA DOS INDIOS','Palmeira dos Indios',top5_al$Municipio)
+top5_al$Municipio <- gsub('CAMPO ALEGRE','Campo Alegre',top5_al$Municipio)
+top5_al$Municipio <- gsub('UNIAO DOS PALMARES','União dos Palmares',top5_al$Municipio)
+top5_al$Municipio <- gsub('PENEDO','Penedo',top5_al$Municipio)
+top5_al$Municipio <- gsub('PORTO CALVO','Porto Calvo',top5_al$Municipio)
+top5_al$Municipio <- gsub('TEOTONIO VILELA','Teotônio Vilela',top5_al$Municipio)
+
+
+
+plot_al <- highchart() %>% 
+  hc_add_series(top5_al, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios AL<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_al$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-AL")
+
+
+
+
+
+
+
+saida_ba_plot <- saida_BA %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_ba <- saida_ba_plot[(order(-saida_ba_plot$Frequencia)), ]
+
+top5_ba <- top5_ba[1:10, ]
+
+top5_ba$Municipio <- gsub('SALVADOR','Salvador',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('LAURO DE FREITAS','Lauro de freitas',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('VITORIA DA CONQUISTA','Vitória da Conquista',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('FEIRA DE SANTANA','Feira de Santana',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('JEQUIE','Jequié',top5_ba$Municipio)
+
+top5_ba$Municipio <- gsub('JUAZEIRO','Juazeiro',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('ITABUNA','Itabuna',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('ILHEUS','Ilhéus',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('BARREIRAS','Barreiras',top5_ba$Municipio)
+top5_ba$Municipio <- gsub('ITAPETINGA','Itapetinga',top5_ba$Municipio)
+
+
+plot_ba <- highchart() %>% 
+  hc_add_series(top5_ba, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios BA<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_ba$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-BA")
+
+
+
+
+
+
+
+
+
+saida_ce_plot <- saida_CE %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_ce <- saida_ce_plot[(order(-saida_ce_plot$Frequencia)), ]
+
+top5_ce <- top5_ce[1:10, ]
+
+top5_ce$Municipio <- gsub('FORTALEZA','Fortaleza',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('SOBRAL','Sobral',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('QUIXERAMOBIM','Quixeramobim',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('JUAZEIRO DO NORTE','Juazeiro do Norte',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('MARACANAU','Maracanaú',top5_ce$Municipio)
+
+top5_ce$Municipio <- gsub('BARBALHA','Barbalha',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('ITAPIPOCA','Itapipoca',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('CRATO','Crato',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('CRATEUS','Crateús',top5_ce$Municipio)
+top5_ce$Municipio <- gsub('TAUA','Tauá',top5_ce$Municipio)
+
+
+plot_ce <- highchart() %>% 
+  hc_add_series(top5_ce, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios CE<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_ce$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-CE")
+
+
+
+
+
+
+
+saida_ma_plot <- saida_MA %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_ma <- saida_ma_plot[(order(-saida_ma_plot$Frequencia)), ]
+
+top5_ma <- top5_ma[1:10, ]
+
+top5_ma$Municipio <- gsub('SAO LUIS','São Luís',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('IMPERATRIZ','Imperatriz',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('CAXIAS','Caxias',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('PEDREIRAS','Pedreiras',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('LAGO DA PEDRA','Lago da Pedra',top5_ma$Municipio)
+
+top5_ma$Municipio <- gsub('TIMON','Timon',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('BALSAS','Balsas',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('SANTA INES','Santa Inês',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('PINHEIRO','Pinheiro',top5_ma$Municipio)
+top5_ma$Municipio <- gsub('AMARANTE DO MARANHAO','Amarante do Maranhão',top5_ma$Municipio)
+
+
+plot_ma <- highchart() %>% 
+  hc_add_series(top5_ma, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios MA<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_ma$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-MA")
+
+
+
+
+
+
+
+saida_pb_plot <- saida_PB %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_pb <- saida_pb_plot[(order(-saida_pb_plot$Frequencia)), ]
+
+top5_pb <- top5_pb[1:10, ]
+
+top5_pb$Municipio <- gsub('JOAO PESSOA','João Pessoa',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('CAMPINA GRANDE','Campina Grande',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('PATOS','Patos',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('SANTA RITA','Santa Rita',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('CAJAZEIRAS','Cajazeiras',top5_pb$Municipio)
+
+top5_pb$Municipio <- gsub('PIANCO','Piancó',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('SOUSA','Sousa',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('POMBAL','Pombal',top5_pb$Municipio)
+top5_pb$Municipio <- gsub('MONTEIRO','Monteiro',top5_pb$Municipio)
+top5_pb$municipio <- gsub('MAMANGUAPE','Mamanguape',top5_pb$Municipio)
+
+plot_pb <- highchart() %>% 
+  hc_add_series(top5_pb, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios PB<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_pb$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-PB")
+
+
+
+
+
+
+saida_pe_plot <- saida_PE %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_pe <- saida_pe_plot[(order(-saida_pe_plot$Frequencia)), ]
+
+top5_pe <- top5_pe[1:10, ]
+
+top5_pe$Municipio <- gsub('RECIFE','Recife',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('CARUARU','Caruaru',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('PETROLINA','Petrolina',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('JABOATAO DOS GUARARAPES','Jaboatão dos Guararapes',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('CABO DE SANTO AGOSTINHO','Cabo de Santo Agostinho',top5_pe$Municipio)
+
+top5_pe$Municipio <- gsub('PAULISTA','Paulista',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('SERRA TALHADA','Serra Talhada',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('PALMARES','Palmares',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('ARARIPINA','Araripina',top5_pe$Municipio)
+top5_pe$Municipio <- gsub('OLINDA','Olinda',top5_pe$Municipio)
+
+plot_pe <- highchart() %>% 
+  hc_add_series(top5_pe, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios PE<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_pe$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-PB")
+
+
+
+
+
+
+
+
+saida_pi_plot <- saida_PI %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_pi <- saida_pi_plot[(order(-saida_pi_plot$Frequencia)), ]
+
+top5_pi <- top5_pi[1:10, ]
+
+top5_pi$Municipio <- gsub('TERESINA','Teresina',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('PARNAIBA','Parnaíba',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('FLORIANO','Floriano',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('CAMPO MAIOR','Campo Maior',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('BOM JESUS','Bom Jesus',top5_pi$Municipio)
+
+top5_pi$Municipio <- gsub('PICOS','Picos',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('SAO RAIMUNDO NONATO','São Raimundo Nonato',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('OEIRAS','Oeiras',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('CORRENTE','Corrente',top5_pi$Municipio)
+top5_pi$Municipio <- gsub('PIRIPIRI','Piripiri',top5_pi$Municipio)
+
+plot_pi <- highchart() %>% 
+  hc_add_series(top5_pi, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios PI<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_pi$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-PI")
+
+
+
+
+
+
+saida_rn_plot <- saida_RN %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_rn <- saida_rn_plot[(order(-saida_rn_plot$Frequencia)), ]
+
+top5_rn <- top5_rn[1:10, ]
+
+top5_rn$Municipio <- gsub('NATAL','Natal',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('MOSSORO','Mossoró',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('CAICO','Caicó',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('PAU DOS FERROS','Pau dos Ferros',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('CURRAIS NOVOS','Currais Novos',top5_rn$Municipio)
+
+top5_rn$Municipio <- gsub('PARNAMIRIM','Parnamirim',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('SAO PAULO DO POTENGI','São Paulo do Potengi',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('MACAIBA','Macaíba',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('ACU','Açu',top5_rn$Municipio)
+top5_rn$Municipio <- gsub('SANTO ANTONIO','Santo Antônio',top5_rn$Municipio)
+
+
+plot_rn <- highchart() %>% 
+  hc_add_series(top5_rn, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios RN<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_rn$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-RN")
+
+
+
+
+
+
+
+saida_se_plot <- saida_SE %>% select(Municipio,Frequencia,Porcentagem)
+
+top5_se <- saida_se_plot[(order(-saida_se_plot$Frequencia)), ]
+
+top5_se <- top5_se[1:10, ]
+
+top5_se$Municipio <- gsub('ARACAJU','Aracaju',top5_se$Municipio)
+top5_se$Municipio <- gsub('ESTANCIA','Estância',top5_se$Municipio)
+top5_se$Municipio <- gsub('ITABAIANA','Itabaiana',top5_se$Municipio)
+top5_se$Municipio <- gsub('LAGARTO','Lagarto',top5_se$Municipio)
+top5_se$Municipio <- gsub('NOSSA SENHORA DO SOCORRO','Nossa Senhora do Socorro',top5_se$Municipio)
+
+top5_se$Municipio <- gsub('PROPRIA','Propriá',top5_se$Municipio)
+top5_se$Municipio <- gsub('NOSSA SENHORA DA GLORIA','Nossa Senhora da Glória',top5_se$Municipio)
+top5_se$Municipio <- gsub('SAO CRISTOVAO','São Cristóvão',top5_se$Municipio)
+top5_se$Municipio <- gsub('TOBIAS BARRETO','Tobias Barreto',top5_se$Municipio)
+top5_se$Municipio <- gsub('CAPELA','Capela',top5_se$Municipio)
+
+
+plot_se <- highchart() %>% 
+  hc_add_series(top5_se, hcaes(x = Municipio, y = Frequencia), type = "bar", showInLegend = F, colorByPoint = F, color = "#020878") %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Número de Registros: {point.y} <br>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Top 10 municípios SE<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_xAxis(categories = top5_se$Municipio , linecolor = "#ffffff") %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+           opposite = F,
+           showFirstLabel = TRUE,
+           showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-top10-SE")
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+# Registros {data-icon="fa-chart-line"}
+
+
+## Column {data-width=300, data-height=1000}
+
+### Informações do autor e objetivo do painel {data-height=300}
+
+<div style="text-align: justify">
+
+Este foi um trabalho realizado com os dados da síndrome respiratória aguda grave (SRAG) da região nordeste e tem como
+objetivos informar:
+
+</div>
+
+- O número total de registros;
+- A variação de registros ao longo do ano;
+- A situação  de vacinação ao longo de 2021;
+- A distribuição dos casos entre estados;
+- A distribuição entre os municípios dos estados;
+- A idade média por gênero e estados;
+- Os casos por idade ao longo de 2021;
+- A situação dos sintomas.
+
+Qualquer dúvida ou dica, por favor, entrar em contato:
+
+**Autor:** Ronaldo Costa da Silva
+
+**Email:** ronaldo.costa@estudante.ufcg.edu.br
+ 
+Dados brutos retirados do site: [covid.saude.gov.br](https://covid.saude.gov.br)
+
+
+
+
+### Número total de registros <font size='2'> (2021) </font> {data-height=100}
+```{r fig.height=0.5}
+# Grab worldwide number of suicides per 100K people from the data
+registros <- dados %>% summarise(cont = n())
+
+# Create value box
+valueBox(registros, icon = "fa-plus", color = "#302d2d")
+```
+
+
+
+### Distribuição por sexo {.no-title} 
+```{r fig.height=2.5}
+
+dados1 <- dados %>% 
+         filter(sexo %in% c("M","F")) 
+
+
+dados1$sexo <- gsub("M","Masculino",dados1$sexo)
+dados1$sexo <- gsub("F","Feminino",dados1$sexo)
+
+pie_sexo <- data.frame(round(prop.table(table(dados1$sexo))*100, digits = 2)) %>% 
+            rename("sexo" = "Var1",
+                   "porcentagem" = "Freq") 
+
+
+  highchart() %>% 
+  hc_add_series(pie_sexo, hcaes(x = sexo, y = porcentagem, color = c("#EE6AA7", "#87CEEB")), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("<b>{point.sexo} ({point.percentage:.1f}%)</b>")) %>%
+  hc_title(text = "<b>Distribuição por gênero</b>", style = (list(fontSize = '14px', color = "#000000", useHTML = TRUE))) %>% 
+#  hc_subtitle(text = "2021", style = (list(fontSize = '10px'))) %>%
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, style = list(fontSize = 10)), size = 130)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-pizza-sexo")
+  
+
+
+```
+
+
+## Column {.tabset .tabset-fade data-width=700, data-height=1000}
+
+### Casos {.no-title}
+ 
+```{r fig.height = 3.95}
+contagem <- dados %>% 
+             group_by(data) %>%
+             summarise(fr_absoluta = n())
+
+contagem <- contagem[-c(364,365,366,367,368,369),]
+
+highchart(type = "stock") %>% 
+  hc_add_series(contagem, hcaes(x = as.Date(data), y = fr_absoluta, color = fr_absoluta), type = "line", showInLegend = FALSE, colorByPoint = TRUE) %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Data: {point.x: %d-%m-%Y} <br> Registros: <b>{point.y}</b>"), sort = F, table = F) %>%
+  hc_title(text = "<b>Número de Registros<b>",
+           margin = 20,
+           align = "center",
+           style = list(color = "#000000", useHTML = TRUE)) %>% 
+#  hc_subtitle(text = "<b>2021<b>", style = list(color = "#ffffff", useHTML = TRUE)) %>%
+  hc_xAxis(title = list(text = "Mês/Ano"), labels = list(format = "{value:%m/%Y}")) %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)"),
+         opposite = F,
+         showFirstLabel = TRUE,
+         showLastLabel = TRUE) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.br") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-Num-Registros")
+
+```
+
+
+
+### Situação de Vacinação {.no-title .no-padding .colored}
+
+```{r fig.height = 3.95}
+
+dados2 <- dados %>% filter(!is.na(vacinado))
+
+dados2$vacinado <- gsub("1","sim",dados2$vacinado)
+dados2$vacinado <- gsub("2","não",dados2$vacinado)
+dados2$vacinado <- gsub("9","ignorado",dados2$vacinado)
+
+
+contagem_vacina <- dados2 %>% 
+                   group_by(data,vacinado) %>%
+                   summarise(contagem = n())
+
+
+highchart() %>% 
+  hc_add_series(contagem_vacina, hcaes(x = as.Date(data), y = contagem, group = vacinado), type = "line", name = c("Ignorado","Não vacinado","Vacinado")) %>% 
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = paste("Data: {point.x: %d-%m-%Y} <br> Registros: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>Registros de Vacinas<b>", 
+           margin = 20,
+           align = "center",
+           style = list(color = "#000000", useHTML = TRUE)) %>% 
+#  hc_subtitle(text = "2021") %>%
+  hc_xAxis(title = list(text = "Mês/Ano"), labels = list(format = "{value:%m/%Y}")) %>%
+  hc_yAxis(title = list(text = "Registros (k = Mil)")) %>% 
+  hc_subtitle(
+    text = "Individuos que tomaram pelo menos 1 dose da vacina",
+    align = "left",
+    style = list(color = "#2b908f", fontWeight = "bold")) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-registros-vacina")
+```
+
+
+
+# Regiões {data-icon="fa-map"}
+
+## Column {data-width=500} 
+
+### Casos dos Estados do Nordeste 
+
+```{r}
+
+estados <- data.frame(table(dados$SG_UF_NOT)) %>%  # estados
+           rename("Estados" = "Var1",
+                  "N°Casos" = "Freq") %>% 
+           mutate(Porcentagem = round(`N°Casos`/sum(`N°Casos`)*100,digits = 2))
+
+
+
+renderDataTable(add_row(estados, 
+                        Estados = "Total", 
+                       `N°Casos` = sum(estados$`N°Casos`), 
+                        Porcentagem = sum(estados$Porcentagem)),rownames=F, options = list(paging =F, pageLength =  10, scroller = F, scrollY = 370))
+
+
+```
+
+### Casos dos Estados do Nordeste 
+```{r}
+
+urlfile <- "https://raw.githubusercontent.com/kelvins/Municipios-Brasileiros/master/csv/municipios.csv"
+
+cities_lat_lng <- fread(urlfile, selec = c("codigo_ibge","nome","latitude","longitude","capital","codigo_uf")) %>% rename("COD_IBGE"="codigo_ibge",
+                                                                                                                            "Cidade" = "nome",
+                                                                                                                            "lat"="latitude",
+                                                                                                                            "lng"="longitude",
+                                                                                                                            "Capital"="capital",
+                                                                                                                            "Codigo_UF"="codigo_uf")
+
+
+
+# é necessário se certificar que o código de cada cidade estará em formato de texto, para o que a função left_join funcione. 
+
+dados$CO_MUN_NOT_7 <- as.character(dados$CO_MUN_NOT_7)
+cities_lat_lng$COD_IBGE <- as.character(cities_lat_lng$COD_IBGE)
+data_mapa <- left_join(dados, cities_lat_lng, by = c("CO_MUN_NOT_7" = "COD_IBGE"))        
+
+
+
+
+data_mapa <- data_mapa %>% group_by(municipio,lat,lng) %>% summarise(cont = n())
+
+
+## bibliotecas
+library(leaflet)
+
+map_total_cases <- leaflet(data_mapa) %>% addTiles() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    radius = 5,
+    fillOpacity = 0.5, stroke = F,
+    popup = paste("<b>Cidade: </b>", data_mapa$municipio,"<br>",
+                   "<b>Registros: </b>", data_mapa$cont),label = ~municipio)
+
+map_total_cases
+
+```
+
+
+
+
+## Column {.tabset .tabset-fade data-width=700, data-height=1000}
+
+
+### AL
+```{r}
+
+plot_al %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-al")
+
+```
+
+###  BA
+```{r}
+
+plot_ba %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-ba")
+
+```
+
+### CE
+```{r}
+
+plot_ce %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-ce")
+
+```
+
+
+### MA
+```{r}
+
+plot_ma %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-ma")
+
+```
+
+
+### PB
+```{r}
+
+plot_pb %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-pb")
+
+```
+
+
+### PE
+```{r}
+
+plot_pe %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-pe")
+
+
+```
+
+### PI
+```{r}
+
+plot_pi %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-pi")
+
+```
+
+
+### RN
+```{r}
+
+plot_rn %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-rn")
+
+
+```
+
+### SE
+```{r}
+
+plot_se %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-se")
+
+```
+
+
+# Sexo e idade {data-icon="fa-user-friends"}
+
+## Column {data-width=500}
+
+### Idade Média por sexo  {.no-title} 
+
+```{r}
+
+dados3 <- dados %>% filter(idade < 120)
+
+
+dados3 <- dados3 %>% 
+         filter(sexo %in% c("M","F")) 
+
+
+dados3$sexo <- gsub("M","Masculino",dados3$sexo)
+dados3$sexo <- gsub("F","Feminino",dados3$sexo)
+
+idade_med <- dados3 %>%
+                group_by(SG_UF_NOT,sexo) %>% 
+                summarise(idade_media = round(mean(idade),digits = 2)) %>% 
+                rename("estados" = "SG_UF_NOT")
+
+
+idade_med %>% ggplot(aes(x = reorder(estados, -idade_media),
+                          y = ifelse(sexo == "Masculino",-idade_media, idade_media),
+                          fill = sexo)) +
+               geom_bar(stat = "identity") +
+               scale_y_continuous(labels = abs, expand = expansion(add = c(5, 1.5))) + # modulo e expansão eixo y
+              ggtitle('Idade Média por Sexo') +
+               xlab("") +
+               ylab("") +
+              #geom_text(aes(label = idade_media), cex = 4, color = 'black') +
+                geom_text(mapping = aes(x = 9, y = -44, label = paste("52,8")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 9, y = 46, label = paste("49,7")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 8, y = -44, label = paste("53,1")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 8, y = 46.5, label = paste("50,3")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 7, y = -44, label = paste("52,7")), cex =3.5, color = "black") +               
+               geom_text(mapping = aes(x = 7, y = 47, label = paste("50,8")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 6, y = -45, label = paste("53,8")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 6, y = 48, label = paste("50,8")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 5, y = -46.5, label = paste("54,5")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 5, y = 49, label = paste("51,7")), cex =3.5, color = "black") +               
+               geom_text(mapping = aes(x = 4, y = -47, label = paste("56,2")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 4, y = 49.5, label = paste("51,9")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 3, y = -47, label = paste("56,00")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 3, y = 50, label = paste("52,04")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 2, y = -48.5, label = paste("55,6")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 2, y = 52, label = paste("54,0")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 1, y = -48.5, label = paste("57,2")), cex =3.5, color = "black") +
+               geom_text(mapping = aes(x = 1, y = 53, label = paste("54,4")), cex =3.5, color = "black") +
+               scale_fill_manual(name = "Sexo:",values = c("dodgerblue3","hotpink"), labels = c("Masculino","Feminino")) +
+               coord_flip() +
+               scale_x_discrete(expand = expansion(add = c(0,0.7))) + #expansão eixo x
+               theme_classic() +
+               theme(plot.title = element_text(size = 15,hjust = 0.5, colour = "black",face = "bold")) + #localização do titulo # eixo y
+               theme(axis.line = element_blank(),
+               axis.ticks = element_blank(),
+               axis.text.y = element_text(size = 10,hjust = 0.5, colour = "black",face = "bold"),
+               axis.text.x = element_blank(),
+               legend.position = "top")
+
+```
+
+## coluna2 {data-width=500}
+ 
+ 
+### Casos por idade no ano de 2021
+
+```{r}
+
+tabela_idade <- dados %>% filter(faixa_idade != "Series 8") %>% 
+  select(data,faixa_idade) %>% 
+  group_by(data,faixa_idade) %>% 
+  summarise(casos = n()) 
+
+#tabela_idade <- tabela_idade[-8,] 
+
+#age_colore <- rev(plasma(8)) # FALTA CONCERTAR ISSO
+
+highchart() %>% 
+  hc_add_series(tabela_idade, hcaes(x = as.Date(data), y = casos, group = as.factor(faixa_idade)), type = "line") %>%
+  hc_tooltip(crosshairs = TRUE, borderWidth = 1.5, headerFormat = "", pointFormat = 'Data: {point.x: %d-%m-%Y} Casos:{point.y}' ) %>%
+  hc_title(text = "") %>% 
+  hc_xAxis(labels = list(format = "{value:%b %Y}")) %>%
+  hc_yAxis(title = list(text = "casos (k = mil)")) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-faixa-etaria")
+
+
+```
+
+
+# Sintomas {data-icon="fa-table"}
+
+## coluna 1  {.tabset .tabset-fade data-width=500, data-height=1000}
+
+
+
+```{r, echo=FALSE}
+
+
+dados$FEBRE <- gsub('1','Sim',dados$FEBRE)
+dados$FEBRE <- gsub('2','Não',dados$FEBRE)
+dados$FEBRE <- gsub('9','Ignorado',dados$FEBRE)
+
+#50807 = 21,3% NA
+                
+dados$TOSSE <- gsub('1','sim',dados$TOSSE)
+dados$TOSSE <- gsub('2','não',dados$TOSSE)
+dados$TOSSE <- gsub('9','Ignorado',dados$TOSSE)
+
+
+
+
+#105679  = 30% NA
+
+dados$GARGANTA <- gsub('1','Sim',dados$GARGANTA)
+dados$GARGANTA <- gsub('2','Não',dados$GARGANTA)
+dados$GARGANTA <- gsub('9','Ignorado',dados$GARGANTA)
+
+
+
+#105679 = 44,3% NA
+
+dados$DOR_ABD <- gsub('1','Sim',dados$DOR_ABD)
+dados$DOR_ABD <- gsub('2','Não',dados$DOR_ABD)
+dados$DOR_ABD <- gsub('9','Ignorado',dados$DOR_ABD)
+
+
+#105679 = 44,3% NA
+
+
+dados$FADIGA <- gsub('1','Sim',dados$FADIGA)
+dados$FADIGA <- gsub('2','Não',dados$FADIGA)
+dados$FADIGA <- gsub('9','Ignorado',dados$FADIGA)
+
+
+
+
+#105679 = 44,3% NA
+
+dados$PERD_OLFT <- gsub('1','Sim',dados$PERD_OLFT)
+dados$PERD_OLFT <- gsub('2','Não',dados$PERD_OLFT)
+dados$PERD_OLFT <- gsub('9','Ignorado',dados$PERD_OLFT)
+
+
+
+#105679 = 44,3% NA
+
+dados$PERD_PALA <- gsub('1','Sim',dados$PERD_PALA)
+dados$PERD_PALA <- gsub('2','Não',dados$PERD_PALA)
+dados$PERD_PALA <- gsub('9','Ignorado',dados$PERD_PALA)
+
+
+dados$DIABETES <- gsub('1','Sim',dados$DIABETES)
+dados$DIABETES <- gsub('2','Não',dados$DIABETES)
+dados$DIABETES <- gsub('9','Ignorado',dados$DIABETES)
+
+
+
+dados$OBESIDADE <- gsub('1','Sim',dados$OBESIDADE)
+dados$OBESIDADE <- gsub('2','Não',dados$OBESIDADE)
+dados$OBESIDADE <- gsub('9','Ignorado',dados$OBESIDADE)
+
+
+
+
+# 1 <- sim
+# 2 <- não
+# 9 <- ignorado      
+  
+             
+
+
+#50807 = 21,3% NA
+
+
+
+#
+
+contagem_febre <- dados %>% group_by(FEBRE) %>% summarise(contagem = n())
+
+
+contagem_febre <- contagem_febre[-4,]
+
+
+hc <- contagem_febre %>%  hchart("treemap", hcaes(x = FEBRE, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição sintoma de febre<b>",
+                                                                                                               margin = 20,
+                                                                                                               align = "center",
+                                                                                                               style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-febre")
+
+
+
+
+contagem_tosse <- dados %>% group_by(TOSSE) %>% summarise(contagem = n())
+
+
+contagem_tosse <- contagem_tosse[-4,]
+
+
+hc2 <- contagem_tosse %>%  hchart("treemap", hcaes(x = TOSSE, value = contagem, color = contagem))%>% hc_title(text = "<b>Distribuição sintoma de tosse<b>",
+                                                                                                               margin = 20,
+                                                                                                               align = "center",
+                                                                                                               style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-tosse")
+
+
+
+
+contagem_garganta <- dados %>% group_by(GARGANTA) %>% summarise(contagem = n())
+
+
+contagem_garganta <- contagem_garganta[-4,]
+
+
+hc3 <- contagem_garganta %>%  hchart("treemap", hcaes(x = GARGANTA, value = contagem, color = contagem))%>% hc_title(text = "<b>Distribuição sintoma de dor de garganta<b>",
+                                                                                                                     margin = 20,
+                                                                                                                     align = "center",
+                                                                                                                     style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-garganta")
+
+
+
+
+contagem_dor_abd <- dados %>% group_by(DOR_ABD) %>% summarise(contagem = n())
+
+
+contagem_dor_abd <- contagem_dor_abd[-4,]
+
+
+hc4 <- contagem_dor_abd %>%  hchart("treemap", hcaes(x = DOR_ABD, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição sintoma de dor abdominal<b>",
+                                                                                                                    margin = 20,
+                                                                                                                    align = "center",
+                                                                                                                    style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-dor-abd")
+
+
+
+contagem_fadiga <- dados %>% group_by(FADIGA) %>% summarise(contagem = n())
+
+
+contagem_fadiga <- contagem_fadiga[-4,]
+
+
+hc5 <- contagem_fadiga %>%  hchart("treemap", hcaes(x = FADIGA, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição sintoma de fadiga<b>",
+                                                                                                                  margin = 20,
+                                                                                                                  align = "center",
+                                                                                                                  style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-fadiga")
+
+
+
+
+contagem_perd_olft <- dados %>% group_by(PERD_OLFT) %>% summarise(contagem = n())
+
+
+contagem_perd_olft <- contagem_perd_olft[-4,]
+
+
+hc6 <- contagem_perd_olft %>%  hchart("treemap", hcaes(x = PERD_OLFT, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição da perda do olfato<b>",
+                                                                                                                        margin = 20,
+                                                                                                                        align = "center",
+                                                                                                                        style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-perd-olft")
+
+
+
+
+
+contagem_perd_pala <- dados %>% group_by(PERD_PALA) %>% summarise(contagem = n())
+
+
+contagem_perd_pala <- contagem_perd_pala[-4,]
+
+
+hc7 <- contagem_perd_pala %>%  hchart("treemap", hcaes(x = PERD_PALA, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição da perda do paladar<b>",
+                                                                                                                        margin = 20,
+                                                                                                                        align = "center",
+                                                                                                                        style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-perd-pala")
+
+
+
+
+
+contagem_diabetes <- dados %>% group_by(DIABETES) %>% summarise(contagem = n())
+
+
+contagem_diabetes <- contagem_diabetes[-4,]
+
+
+hc8 <- contagem_diabetes %>%  hchart("treemap", hcaes(x = DIABETES, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição diabeticos<b>",
+                                                                                                               margin = 20,
+                                                                                                               align = "center",
+                                                                                                               style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-diabetes")
+
+
+
+
+
+contagem_obesidade <- dados %>% group_by(OBESIDADE) %>% summarise(contagem = n())
+
+
+contagem_obesidade <- contagem_obesidade[-4,]
+
+
+hc9 <- contagem_obesidade %>%  hchart("treemap", hcaes(x = OBESIDADE, value = contagem, color = contagem)) %>% hc_title(text = "<b>Distribuição individuos obesos<b>",
+                                                                                                               margin = 20,
+                                                                                                               align = "center",
+                                                                                                               style = list(color = "#080707", useHTML = TRUE)) %>% 
+  hc_credits(enabled = TRUE,text = "covid.saude.gov.br",href = "https://covid.saude.gov.brV") %>% 
+  hc_exporting(
+    enabled = T, # always enabled
+    filename = "Plot-obesidade")
+
+
+```
+
+
+### Febre
+
+```{r}
+hc
+```
+
+### Tosse
+
+```{r}
+hc2
+```
+
+### Garganta
+
+```{r}
+hc3
+```
+
+
+### Dor abdominal
+```{r}
+hc4
+```
+
+### Fadiga
+```{r}
+hc5
+```
+ 
+### Perda do olfato
+```{r}
+hc6
+```
+
+### Perda do paladar
+```{r}
+hc7
+```
+
+
+## coluna 2  {.tabset .tabset-fade data-width=500, data-height=1000}
+
+### Diabeticos
+
+```{r}
+hc8
+```
+
+
+
+### Obesos
+
+```{r}
+hc9
+```
+
+# Meme
+
+## coluna 1  {data-width=500, data-height=500}
+
+
+### :x {.no.title}
+```{r}
+meme_get("HotlineDrake") %>% 
+  meme_text_drake(top = "Aprendendo por tentativa e erro",
+                  bot = "Aprendendo com dados")
+```
+
+
+
+
+
+
