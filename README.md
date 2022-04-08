@@ -6,7 +6,7 @@ Foram realizados tratamentos para em seguida elabor os gráficos e fazer a estru
 
 Dados brutos retirados de [covid.saude.gov](https://covid.saude.gov.br)  
 
-Para compilar o Dashboard basta colacar o seguinte csv no fread [dados tilizados](https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SRAG/2021/INFLUD21-15-03-2022.csv)
+Para compilar o dashboard basta colacar o seguinte csv no fread [dados tilizados](https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SRAG/2021/INFLUD21-15-03-2022.csv).
 
 [Dashboar Análise (SRAG)](https://5vuj2s-ronaldo-silva.shinyapps.io/app_flesh_dashboard/)  
 
