@@ -1336,7 +1336,7 @@ hc8
 
 
 
-### Obesos
+### Obesos (as)
 
 ```{r}
 hc9
